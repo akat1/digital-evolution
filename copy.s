@@ -179,7 +179,6 @@ copy:
     DECX
     MVAP
     SUBA 0xa-0x2
-    MURATEY
     ADDAY
     LDAA
     MUTATEA

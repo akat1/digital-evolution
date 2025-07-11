@@ -25,7 +25,7 @@ typedef enum {
 
 #define FUEL 512
 
-const uint32_t memory_limit = 0xFFFFFF;
+const uint32_t memory_limit = 0xFFFF;
 uint32_t *memory; 
 
 
@@ -48,19 +48,19 @@ typedef enum {
 
 int
 mem_fetch(uint32_t addr, uint32_t *out) {
-    if (addr > memory_limit)
+    if (addr >= memory_limit)
         return MEM_ERROR;
 
-    *out = memory[addr%(memory_limit+1)];
+    *out = memory[addr];
     return MEM_OK;
 }
 
 int
 mem_store(uint32_t addr, uint32_t *in) {
-    if (addr > memory_limit)
+    if (addr >= memory_limit)
        return MEM_ERROR;
 
-    memory[addr%(memory_limit+1)] = *in;
+    memory[addr] = *in;
     return MEM_OK;
 }
 
@@ -339,7 +339,7 @@ void execute(thread_t *t) {
  
     default:
         kill_thread(t);
-        break;
+        return;;
     }
 
     t->pc += 2;
@@ -368,14 +368,15 @@ print_memory(int level)
 
     for (x = 0; x < 32; x++) {
         acc = 0;
-        for (y = 0 ; y < 32; y++) {
-            for (i = 0; i < 64; i++) {
-                acc += memory[x*2048+64*y+i];
+        for (y = 0 ; y < 128; y++) {
+            for (i = 0; i < 16; i++) {
+                acc += memory[x*2048+16*y+i];
             }
             printw("%c", printable[acc % (strlen(printable))]);
         }
         printw("\n");
     }
+
     refresh();
 
     return;
@@ -393,7 +394,16 @@ main(int argc, char **argv)
     LIST_INIT(&threads);
     new_thread(0, FUEL);
 
+    if (argc < 2) {
+        fprintf(stderr, "usage: %s [filename]\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
     fh = fopen(argv[1], "r");
+    if (fh == NULL) {
+	      fprintf(stderr, "can't open file: %s\n", argv[1]);
+	      exit(EXIT_FAILURE);
+    }
     fread(memory, 1, 1024, fh);
     fclose(fh);
 
@@ -401,13 +411,14 @@ main(int argc, char **argv)
 
     while(!LIST_EMPTY(&threads)) {
         spin++;
-        LIST_FOREACH_SAFE(curr, &threads, entries, thread_tmp)
+        /* Linux lacks of LIST_FOREACH_SAFE */
+        for (curr = LIST_FIRST(&threads); curr && (thread_tmp = LIST_NEXT(curr, entries), 1); curr = thread_tmp)
             execute(curr);
-        if (spin % 10000 == 0) {
+        if (spin % 100000 == 0) {
             print_memory(spin);
         }
     }
-
+    print_memory(spin);
     getch();
     endwin();
 
